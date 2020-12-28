@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wave_config>
+   <wave_state>
+   </wave_state>
+   <db_ref_list>
+      <db_ref path="tb_myI2SSlave_behav.wdb" id="1">
+         <top_modules>
+            <top_module name="glbl" />
+            <top_module name="tb_myI2SSlave" />
+         </top_modules>
+      </db_ref>
+   </db_ref_list>
+   <zoom_setting>
+      <ZoomStartTime time="0fs"></ZoomStartTime>
+      <ZoomEndTime time="3112000001fs"></ZoomEndTime>
+      <Cursor1Time time="200000000fs"></Cursor1Time>
+   </zoom_setting>
+   <column_width_setting>
+      <NameColumnWidth column_width="262"></NameColumnWidth>
+      <ValueColumnWidth column_width="58"></ValueColumnWidth>
+   </column_width_setting>
+   <WVObjectSize size="16" />
+   <wvobject fp_name="/tb_myI2SSlave/mclk" type="logic">
+      <obj_property name="ElementShortName">mclk</obj_property>
+      <obj_property name="ObjectShortName">mclk</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/bclk" type="logic">
+      <obj_property name="ElementShortName">bclk</obj_property>
+      <obj_property name="ObjectShortName">bclk</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/lrclk" type="logic">
+      <obj_property name="ElementShortName">lrclk</obj_property>
+      <obj_property name="ObjectShortName">lrclk</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/sdata" type="logic">
+      <obj_property name="ElementShortName">sdata</obj_property>
+      <obj_property name="ObjectShortName">sdata</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/s00_axis_aclk" type="logic">
+      <obj_property name="ElementShortName">s00_axis_aclk</obj_property>
+      <obj_property name="ObjectShortName">s00_axis_aclk</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/s00_axis_aresetn" type="logic">
+      <obj_property name="ElementShortName">s00_axis_aresetn</obj_property>
+      <obj_property name="ObjectShortName">s00_axis_aresetn</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/s00_axis_tready" type="logic">
+      <obj_property name="ElementShortName">s00_axis_tready</obj_property>
+      <obj_property name="ObjectShortName">s00_axis_tready</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/s00_axis_tdata" type="array">
+      <obj_property name="ElementShortName">s00_axis_tdata[31:0]</obj_property>
+      <obj_property name="ObjectShortName">s00_axis_tdata[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/s00_axis_tstrb" type="logic">
+      <obj_property name="ElementShortName">s00_axis_tstrb</obj_property>
+      <obj_property name="ObjectShortName">s00_axis_tstrb</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/s00_axis_tlast" type="logic">
+      <obj_property name="ElementShortName">s00_axis_tlast</obj_property>
+      <obj_property name="ObjectShortName">s00_axis_tlast</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/s00_axis_tvalid" type="logic">
+      <obj_property name="ElementShortName">s00_axis_tvalid</obj_property>
+      <obj_property name="ObjectShortName">s00_axis_tvalid</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/ac_divider" type="array">
+      <obj_property name="ElementShortName">ac_divider[2:0]</obj_property>
+      <obj_property name="ObjectShortName">ac_divider[2:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/myI2SSlave_v1_0_inst/state" type="array">
+      <obj_property name="ElementShortName">state[1:0]</obj_property>
+      <obj_property name="ObjectShortName">state[1:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/myI2SSlave_v1_0_inst/bitcounter" type="array">
+      <obj_property name="ElementShortName">bitcounter[4:0]</obj_property>
+      <obj_property name="ObjectShortName">bitcounter[4:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/myI2SSlave_v1_0_inst/buffer" type="array">
+      <obj_property name="ElementShortName">buffer[31:0]</obj_property>
+      <obj_property name="ObjectShortName">buffer[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_myI2SSlave/myI2SSlave_v1_0_inst/shiftreg" type="array">
+      <obj_property name="ElementShortName">shiftreg[15:0]</obj_property>
+      <obj_property name="ObjectShortName">shiftreg[15:0]</obj_property>
+   </wvobject>
+</wave_config>
