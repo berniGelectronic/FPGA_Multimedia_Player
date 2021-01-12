@@ -13,6 +13,11 @@
 //#include "IP_defines.h"
 //#include "ff.h"
 
+# define DoNotMountSDCard 0
+# define MountSDCard 1
+
+
+
 
 //the RIFF Chunk
 typedef struct {
@@ -53,9 +58,17 @@ typedef struct{
 
 }songList_t;
 
+extern RIFF_Chunk_t RIFF_Info;
+extern fmt_Chunk_t fmt_Chunk; //sampling rate ... etc.
+extern Data_Chunk_t Data_Chunk;
+
+extern const char Drive0Path[3] ;
+extern const char Drive1Path[3];
+
+
 //SD card functions
-
-
+void Check_SD_Card_Mounted(FATFS);
+void Read_SD_Card(char *filename, size_t AudioBufferSize, u8 *AudioBuffer);
 
 
 #endif /* SRC_SD_CARD_H_ */
