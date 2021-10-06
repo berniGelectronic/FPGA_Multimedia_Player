@@ -45,10 +45,17 @@
 #include "xil_cache.h"
 #include "Graphics.h"
 #include "Bit_Bash.h"
+<<<<<<< HEAD
 
 #include "VDMA_Setup.h"
 #include "imageData.h"
 #include "GPIO_LEDs.h"
+=======
+
+#include "VDMA_Setup.h"
+
+
+>>>>>>> 732e8af... Removed audio functions
 //#define DEBUG
 
 /*
@@ -143,7 +150,7 @@ int configureALL();
 static int SetupInterruptSystem(XIic *IicInstPtr, XAxiDma *AxiDma, XGpio *Gpio_SWITCH_BUTTON, XAxiVdma *AxiVdmaPtr);
 static void I2CSendHandler(XIic *InstancePtr);
 static void I2CReceiveHandler(XIic *InstancePtr);
-static void I2CStatusHandler(XIic *InstancePtr, int Event);
+//static void I2CStatusHandler(XIic *InstancePtr, int Event); //unused
 
 //int SetupIntrSystem(INTC * IntcInstancePtr, XAxiDma * AxiDmaPtr, u16 TxIntrId);
 void BTN_SWITCH_Intr_Handler();
@@ -152,6 +159,10 @@ void TxIntrHandler(void *Callback);
 void printData(u8 samples, u8 *data);
 void I2SSend();
 void I2C_send(u16 address, u8 datasend);
+<<<<<<< HEAD
+=======
+
+>>>>>>> 732e8af... Removed audio functions
 
 void Open_File_Directory(void);
 void Copy_WAV_File_Names(void);
@@ -218,9 +229,16 @@ XAxiVdma AxiVdma;
 //COLOUR RGB;
 
 int numberOfScreens=10;
+<<<<<<< HEAD
 extern const struct register_values adau_1761_reg[12];
 
 
+=======
+extern unsigned char Test_Image_map[FrameSize];
+extern unsigned char volume_screen[FrameSize];
+extern unsigned char song_selection[FrameSize];
+extern const struct register_values adau_1761_reg[12];
+>>>>>>> 732e8af... Removed audio functions
 
 volatile u8 TransmitComplete; /* Flag to check completion of Transmission i2c*/
 volatile u8 ReceiveComplete; /* Flag to check completion of Reception i2c */
@@ -281,7 +299,7 @@ int main(void) {
 
 	status = configureALL();
 	if (status != XST_FAILURE) {
-		xil_printf("\n\rI2C CODEC TEST");
+		xil_printf("\n\rI2C CODEC TEST --------->>>>>>>>");
 		XGpio_DiscreteWrite(&Gpio_LEDs, RGB_LED_CHANNEL, LED_RGB1_G);
 
 	} else {
@@ -392,9 +410,16 @@ int main(void) {
 	int listNumberPrintStart_X=363, listNumberPrintStart_Y=100;
 
 	sprintf(totalSongsPrint,"%d",songCounterWAV);
-
+	u32 currentButton;
 	while (1) {
 
+<<<<<<< HEAD
+=======
+//		currentButton = XGpio_DiscreteRead(&Gpio_SWITCH_BUTTON, BUTTONS_CHANNEL);// & 0x0F;
+//		xil_printf("CURRENT_Button_Val = %lu\n\r", (unsigned long)currentButton);
+
+
+>>>>>>> 732e8af... Removed audio functions
 		//	tempSongCNT=(songCounterWAV-(songlistsCounter*MAX_SONGS_ON_LIST))+MAX_SONGS_ON_LIST; // top limit
 		switch (SW_STATE) {
 		case DEFAULT:
@@ -465,7 +490,7 @@ int main(void) {
 
 //			printf("DEFAULT STATE\n\r");
 			if (Button_Val != 0) { //if button was pressed do it only once
-				printf("\n\r BTN_STATE=== %x , Button_Val== %x ",BTN_STATE,Button_Val);
+				printf("\n\r BTN_STATE=== %x , Button_Val== %x ",(int)BTN_STATE,(int)Button_Val);
 				switch (BTN_STATE) {
 				case DOWN:
 					songCounter++;
@@ -584,7 +609,7 @@ int main(void) {
 				BTN_STATE=0;
 				Button_Val=0;
 				//with printf works fine, if commented song is incremented when play is pressed
-				printf("\n\r 22_BTN_STATE=== %x , Button_Val== %x ",BTN_STATE,Button_Val);
+				printf("\n\r 22_BTN_STATE=== %x , Button_Val== %x ",(int)BTN_STATE,(int)Button_Val);
 //				XGpio_DiscreteWrite(&Gpio_LEDs, SINGLE_LED_CHANNEL, (LED1 | LED2)&0x00); // LED 2 on when btn 1 pressed
 			}
 //********************************************************************************************
@@ -994,7 +1019,7 @@ void I2SSend() {
 		}
 		else if(audioBlockCounter==nAudioBlocks){ //if this is the last block of data, calculate rest of the data to send
 			lastBlockSize=Data_Chunk.Subchunk2_size-(audioBlockCounter*MAX_AUDIO_BLOCK_SIZE);
-			printf("LAST BLOCK SIZE:: %d \n\r",lastBlockSize);
+			printf("LAST BLOCK SIZE:: %d \n\r",(int)lastBlockSize);
 			Status = XAxiDma_SimpleTransfer(&AxiDma, (UINTPTR) AudioBuffer+(MAX_AUDIO_BLOCK_SIZE*audioBlockCounter),
 					lastBlockSize, XAXIDMA_DMA_TO_DEVICE);
 			}
@@ -1493,8 +1518,8 @@ void Copy_WAV_File_Names(void) {
 				snprintf(sizeDesignator,3,"%s","MB");
 			}
 
-			snprintf(songList_ptr[songCounterWAV]->songLength, 7, "%d:%.2d", min,seconds);
-			snprintf(songList_ptr[songCounterWAV]->songSizeMb, 12, "%d.%.3d %s",megaBytes, bytes, sizeDesignator);
+			snprintf(songList_ptr[songCounterWAV]->songLength, 7, "%d:%.2d", (int)min,(int)seconds);
+			snprintf(songList_ptr[songCounterWAV]->songSizeMb, 12, "%d.%.3d %s",(int)megaBytes, (int)bytes, sizeDesignator);
 			songList_ptr[songCounterWAV]->songAverageBytePerSec = fmt_Chunk.ByteRate;
 			songList_ptr[songCounterWAV]->songNChannels = fmt_Chunk.Num_Channels;
 			songList_ptr[songCounterWAV]->songSamplingRate = fmt_Chunk.Sample_Rate;
