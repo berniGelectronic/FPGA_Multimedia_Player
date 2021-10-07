@@ -9,7 +9,6 @@
  *#####################################################################
  */
 
-
 #include "xparameters.h"
 #include "xiic.h"
 #include "xiic_l.h"
@@ -17,11 +16,7 @@
 #include "xstatus.h"
 #include "xil_exception.h"
 #include "xil_printf.h"
-
-
-
-
-//#include "sleep.h"
+#include "sleep.h"
 #include "stdio.h"
 #include <math.h>
 #include "xdebug.h"
@@ -33,22 +28,23 @@
 #include "xgpio.h"
 #include "xgpio_l.h"
 //#include "xllfifo.h"
-#include "audio.h"
 
-//#include "adau_1761.h"
+#include "adau_1761.h"
 #include "interrupt_hand.h"
 #include "sd_card.h"
 #include "user_io.h"
+//#include "IP_defines.h"
 
+#include <stdio.h>
 #include "xaxivdma.h"
 #include <stdlib.h>
 #include "xil_cache.h"
 #include "Graphics.h"
 #include "Bit_Bash.h"
-
+//#include "Interrupt.h"
 #include "VDMA_Setup.h"
-
-
+#include "imageData.h"
+#include "GPIO_LEDs.h"
 //#define DEBUG
 
 /*
@@ -61,7 +57,7 @@
 // base address for the DDR3 im memory map
 #define MEM_BASE_ADDR	XPAR_PS7_DDR_0_S_AXI_BASEADDR	//	0x00100000
 
-#define TX_WAV_BUFFER_BASE		(MEM_BASE_ADDR + 0x01000000)
+#define TX_AUDIO_DATA_BUFFER_BASE		(MEM_BASE_ADDR + 0x01000000)
 
 
 #define IMAGE_BUFFER_SIZE 		(MEM_BASE_ADDR + 0x1A000000) //image address in RAM
@@ -85,8 +81,8 @@
  */
 #define RESET_TIMEOUT_COUNTER	10000
 
-// for loop value for LED test
-#define LED_DELAY     10000000
+//// for loop value for LED test
+//#define LED_DELAY     10000000
 
 
 //size of the audio block data sent to the RAM
@@ -102,8 +98,8 @@
 //#define GPIO_BTN_CHANNEL 0
 //#define GPIO_SW_CHANNEL 1
 
-#define SINGLE_LED_CHANNEL 1
-#define RGB_LED_CHANNEL    2
+//#define SINGLE_LED_CHANNEL 1
+//#define RGB_LED_CHANNEL    2
 
 #define BUTTONS_CHANNEL 1
 #define SWITCH_CHANNEL  2
@@ -117,6 +113,7 @@
 //FIFO
 //#define FIFO_ID XPAR_AXI_FIFO_0_DEVICE_ID
 //#define FIFO_BASE_ADDRESS XPAR_AXI_FIFO_0_BASEADDR
+
 
 #define dataCount 4
 #define readData 10
@@ -143,24 +140,27 @@ int configureALL();
 static int SetupInterruptSystem(XIic *IicInstPtr, XAxiDma *AxiDma, XGpio *Gpio_SWITCH_BUTTON, XAxiVdma *AxiVdmaPtr);
 static void I2CSendHandler(XIic *InstancePtr);
 static void I2CReceiveHandler(XIic *InstancePtr);
-//static void I2CStatusHandler(XIic *InstancePtr, int Event); //unused
+static void I2CStatusHandler(XIic *InstancePtr, int Event);
 
 //int SetupIntrSystem(INTC * IntcInstancePtr, XAxiDma * AxiDmaPtr, u16 TxIntrId);
 void BTN_SWITCH_Intr_Handler();
 void TxIntrHandler(void *Callback);
 
+void setCodecPLL(int sampling_rate);
+void setVolume(output_t *HP, u8 volume);
 void printData(u8 samples, u8 *data);
 void I2SSend();
 void I2C_send(u16 address, u8 datasend);
+void CodecReadByte(u16 Address, u8 *BufferPtr, u8 ByteCount);
 
-
-void Read_SD_Card(char *filename);
-void Check_SD_Card_Mounted(void);
+//void Read_SD_Card(char *filename, size_t AudioBufferSize);
+/*void Check_SD_Card_Mounted(void);*/
 void Open_File_Directory(void);
+
 void Copy_WAV_File_Names(void);
 int Read_SD_Card_short(char *filename);
 
-void turnOffLEDS();
+//void turnOffLEDS();
 void FIFO_Intr_Handler();
 
 int readFile(u32 AudioDataSizeToRead);
@@ -186,13 +186,12 @@ INTC INTC_Inst;
 static XAxiDma AxiDma; /* Instance of the XAxiDma */
 XAxiDma_Config *Config;
 
-// instance of fat file system
-FATFS FS_instance;
+
 // instance of SD card directory
 DIR directory;
 
 // Instances of GPIOs
-XGpio Gpio_LEDs; /* The Instance of the GPIO Driver */
+//XGpio Gpio_LEDs; /* The Instance of the GPIO Driver */
 XGpio Gpio_SWITCH_BUTTON; /* The Instance of the GPIO Driver */
 
 //VARIABLES
@@ -200,17 +199,18 @@ XGpio Gpio_SWITCH_BUTTON; /* The Instance of the GPIO Driver */
 u8 txData[dataCount], rxData[readData], rxData1[readData];
 
 output_t headphones; // structure for setting volume on L&R channel
-RIFF_Chunk_t RIFF_Info;
-fmt_Chunk_t fmt_Chunk; //sampling rate ... etc.
-Data_Chunk_t Data_Chunk;
-FILINFO file_Info; // file names array
 
+FILINFO file_Info; // file names array
+FIL file; // file structure information
+// instance of fat file system
+FATFS FS_instance;
 
 songList_t **songList_ptr;
 
 
-FIL file; // file structure information
+
 UINT nBytesRead = 0;
+
 
 
 //SWITCH AND BUTTON enum
@@ -257,7 +257,7 @@ int songCounterWAV = 0; // number of wav files stored on the SD card
 // memory that will hold the song audio data
 // pointer to AudioBuffer memory space
 //u8 *RxBufferPtr = (u8 *) RX_BUFFER_BASE;
-u8 *AudioBuffer = (u8 *) TX_WAV_BUFFER_BASE;
+u8 *AudioBuffer = (u8 *) TX_AUDIO_DATA_BUFFER_BASE;
 size_t AudioBufferSize = 0;
 
 
@@ -266,10 +266,15 @@ u8 *ImageBuffer=(u8 *) IMAGE_BUFFER_SIZE;
 
 int Status;
 
+//int Tries = NUMBER_OF_TRANSFERS;
+//int Index;
+//u8 Value;
+
 XGpio Gpio_SPI_TFT;
 
 int main(void) {
 	int status;
+	int byteRead = 0;
 	int tempVolume=defaultVolume;
 	headphones.volume.left=defaultVolume;
 	headphones.volume.right=defaultVolume;
@@ -286,7 +291,7 @@ int main(void) {
 
 	status = configureALL();
 	if (status != XST_FAILURE) {
-		xil_printf("\n\rI2C CODEC TEST --------->>>>>>>>");
+		xil_printf("\n\rI2C CODEC TEST");
 		XGpio_DiscreteWrite(&Gpio_LEDs, RGB_LED_CHANNEL, LED_RGB1_G);
 
 	} else {
@@ -295,7 +300,7 @@ int main(void) {
 		return 0;
 	}
 
-	turnOffLEDS(); // set all LEDs to 0;
+	turnOffLEDS(Gpio_LEDs); // set all LEDs to 0;
 
 
 	XIic_SetSendHandler(&I2C, &I2C, (XIic_Handler) I2CSendHandler);
@@ -307,7 +312,7 @@ int main(void) {
 	//***************************SET PLL REGISTER*************************************************
 	I2C_send(ADAU_1761_CLOCK_CONTROL, 0x0E); // core OFF
 
-	setCodecPLL(&I2C, defaultSamplingFrequency); //Write PLL reg
+	setCodecPLL(defaultSamplingFrequency); //Write PLL reg
 
 	xil_printf("\n\r!!!PLL DONE!!!!");
 
@@ -325,23 +330,23 @@ int main(void) {
 	xil_printf("\n\rStart reading from CODEC...");
 
 	//********************read FROM CODEC****************************************************
-	CodecReadByte(I2C_BASE_ADDRESS, CODEC_ADDRESS, ADAU_1761_PLL_CONTROL, rxData, 7);
+	CodecReadByte(ADAU_1761_PLL_CONTROL, rxData, 7);
 	xil_printf("\n\rRegister ADDRESS: %x",ADAU_1761_PLL_CONTROL);
 	printData(7, rxData);	//print received data
 
 	for (int i = 0; i < (sizeof(adau_1761_reg) / sizeof(adau_1761_reg[0]));
 			i++) {
 
-		CodecReadByte(I2C_BASE_ADDRESS, CODEC_ADDRESS,adau_1761_reg[i].addr, rxData, 2);
+		CodecReadByte(adau_1761_reg[i].addr, rxData, 2);
 		xil_printf("\n\rRegister ADDRESS: %x \t DATA: 0x%02x ", adau_1761_reg[i].addr,rxData[0]);
 
 	}
 	xil_printf("\n\r***** CODEC READING DONE*****\n\r");
 
 	// READ LEFT & RIGHT VOLUME REGISTER
-	CodecReadByte(I2C_BASE_ADDRESS, CODEC_ADDRESS,ADAU_1761_PLAY_HP_LEFT_VOL,rxData,2);
+	CodecReadByte(ADAU_1761_PLAY_HP_LEFT_VOL,rxData,2);
 	printData(2, rxData);	//print received data
-	CodecReadByte(I2C_BASE_ADDRESS, CODEC_ADDRESS,ADAU_1761_PLAY_HP_RIGHT_VOL,rxData,2);
+	CodecReadByte(ADAU_1761_PLAY_HP_RIGHT_VOL,rxData,2);
 	printData(2, rxData);	//print received data
 
 	xil_printf("\n\rCODEC CONFIGRUATION DONE!!!\n\r ");
@@ -351,9 +356,15 @@ int main(void) {
 	//*********************************************************************************************
 	// DMA
 	//for(;;) {
-	//check SD card is mounted
-	Check_SD_Card_Mounted();
 
+
+	//check SD card is mounted
+	Check_SD_Card_Mounted(FS_instance);
+
+	// instance of fat file system
+	//	FATFS FS_instance;
+
+	/*FRESULT result = */f_mount(&FS_instance, Drive0Path, MountSDCard);
 	// open the file directory and check files
 	Open_File_Directory();
 
@@ -363,7 +374,7 @@ int main(void) {
 
 	xil_printf("\n\rMultimedia player Ready!!!\n\r ");
 
-//	u32 lastStateButton=0, lastStateSwitch=0;
+	u32 lastStateButton=0, lastStateSwitch=0;
 	int songCounter=0;
 	int currentPlaying=-1; // first time press play only
 	int error;
@@ -393,12 +404,8 @@ int main(void) {
 	int listNumberPrintStart_X=363, listNumberPrintStart_Y=100;
 
 	sprintf(totalSongsPrint,"%d",songCounterWAV);
-	u32 currentButton;
+
 	while (1) {
-
-//		currentButton = XGpio_DiscreteRead(&Gpio_SWITCH_BUTTON, BUTTONS_CHANNEL);// & 0x0F;
-//		xil_printf("CURRENT_Button_Val = %lu\n\r", (unsigned long)currentButton);
-
 
 		//	tempSongCNT=(songCounterWAV-(songlistsCounter*MAX_SONGS_ON_LIST))+MAX_SONGS_ON_LIST; // top limit
 		switch (SW_STATE) {
@@ -470,7 +477,7 @@ int main(void) {
 
 //			printf("DEFAULT STATE\n\r");
 			if (Button_Val != 0) { //if button was pressed do it only once
-				printf("\n\r BTN_STATE=== %x , Button_Val== %x ",(int)BTN_STATE,(int)Button_Val);
+				printf("\n\r BTN_STATE=== %x , Button_Val== %x ",BTN_STATE,Button_Val);
 				switch (BTN_STATE) {
 				case DOWN:
 					songCounter++;
@@ -547,7 +554,7 @@ int main(void) {
 					error=Read_SD_Card_short(songList_ptr[songCounter+MAX_SONGS_ON_LIST*songlistsCounter]->songName);
 					if(error != XST_FAILURE){
 						if ((int) fmt_Chunk.Sample_Rate!= currentFS) { //if Fs is different first set codec PLL to new fs
-							setCodecPLL(&I2C,(int) fmt_Chunk.Sample_Rate);
+							setCodecPLL((int) fmt_Chunk.Sample_Rate);
 							currentFS=(int) fmt_Chunk.Sample_Rate;
 
 						} else {
@@ -589,7 +596,7 @@ int main(void) {
 				BTN_STATE=0;
 				Button_Val=0;
 				//with printf works fine, if commented song is incremented when play is pressed
-				printf("\n\r 22_BTN_STATE=== %x , Button_Val== %x ",(int)BTN_STATE,(int)Button_Val);
+				printf("\n\r 22_BTN_STATE=== %x , Button_Val== %x ",BTN_STATE,Button_Val);
 //				XGpio_DiscreteWrite(&Gpio_LEDs, SINGLE_LED_CHANNEL, (LED1 | LED2)&0x00); // LED 2 on when btn 1 pressed
 			}
 //********************************************************************************************
@@ -742,7 +749,7 @@ int configureALL() {
 
 	// set both channels of buttons and switches gpio as inputs
 	// both buttons and switches (only 4 buttons and 2 switches)
-	XGpio_SetDataDirection(&Gpio_SWITCH_BUTTON, BUTTONS_CHANNEL, 0x1F); //0x0F
+	XGpio_SetDataDirection(&Gpio_SWITCH_BUTTON, BUTTONS_CHANNEL, 0x0F);
 	XGpio_SetDataDirection(&Gpio_SWITCH_BUTTON, SWITCH_CHANNEL, 0x03);
 
 
@@ -808,7 +815,7 @@ void I2C_send(u16 address, u8 datasend) {
 	XIic_Stop(&I2C);
 	//Must stop I2C after send function
 
-//	xil_printf("\n\r COMPLETE:: %d \n\r",TransmitComplete);
+	xil_printf("\n\r COMPLETE:: %d \n\r",TransmitComplete);
 
 
 	/*while(TransmitComplete == 1 ){
@@ -819,6 +826,23 @@ void I2C_send(u16 address, u8 datasend) {
 	usleep(2000); //required after each send according to the codec example
 }
 
+/**
+ * Reads number of bytes from the codec
+ *
+ * @param 	Address	 	Address of register in Codec
+ * @param 	*BufferPtr	points to the buffer to store read values
+ * @param	ByteCount	Number of bytes to read
+ *
+ * @return  None
+ *
+ * @note	None
+ */
+void CodecReadByte(u16 Address, u8 *readBuffer, u8 ByteCount) {
+	u8 AddrToSend[]={Address >>8, (u8)Address};
+
+	XIic_Send(I2C_BASE_ADDRESS, CODEC_ADDRESS,AddrToSend,ByteCount, XIIC_STOP);
+	XIic_Recv(I2C_BASE_ADDRESS, CODEC_ADDRESS,readBuffer,ByteCount, XIIC_STOP);
+}
 
 /**
  * Setup interrupt system
@@ -949,8 +973,8 @@ static int SetupInterruptSystem(XIic *IicInstPtr, XAxiDma *AxiDma, XGpio *Gpio_S
 
 static void I2CSendHandler(XIic *InstancePtr) {
 	TransmitComplete = 0;
-//	xil_printf("\n\r 1111COMPLETE TRANS:: %d",TransmitComplete);
-//	xil_printf("\n\r 222INTERRUPT OCCURED RESET IER:: %x\n\r",XIic_ReadIier(I2C_BASE_ADDRESS));
+	xil_printf("\n\r 1111COMPLETE TRANS:: %d",TransmitComplete);
+	xil_printf("\n\r 222INTERRUPT OCCURED RESET IER:: %x\n\r",XIic_ReadIier(I2C_BASE_ADDRESS));
 
 }
 
@@ -959,6 +983,37 @@ static void I2CReceiveHandler(XIic *InstancePtr) {
 
 }
 
+/**
+ * Writes the correct PLL value for the selected sampling frequency
+ * Supports only 2 sampling rates, 44.1kHz and 48kHz
+ *
+ * @param 	sampling_rate	 	sample rate to write to the codec
+ *
+ * @return  None
+ *
+ * @note	PLL lock time required for the codec to set Lock Bit in register 0x4002
+ */
+void setCodecPLL(int sampling_rate) {
+	int bytes = 9;
+
+	switch (sampling_rate) {
+	case 44100:
+		xil_printf("\n\r SAMPLING FREQUENCY SET: 44100");
+		XIic_MasterSend(&I2C, PLL_44, bytes);
+		break;
+	case 48000:
+		xil_printf("\n\r SAMPLING FREQUENCY SET: 48000");
+		XIic_MasterSend(&I2C, PLL_48, bytes);
+		break;
+	default:
+		xil_printf("\n\r ***ERROR_PLL***");
+		break;
+	}
+
+	usleep(10 * 1000); //PLL LOCK time
+
+	// according to the https://github.com/logicbricks/driver_alsa_logii2s/blob/master/test/app_i2s_test_linux/adau1761.c PLL lock time
+}
 
 /**
  * Prints data to the serial monitor from array
@@ -980,6 +1035,43 @@ void printData(u8 samples, u8 *data) {
 
 }
 
+/**
+ * Sets volume for both channels (Stereo), volume can be incremented in min 1 step, total 64 steps
+ * Table 95, page 90 ADAU 1761 Datasheet
+ * volume: 0  [dec] 	equals to -57dB   -- Silent
+ * volume: 63 [dec] 	equals to   6dB	  -- Highest volume
+ *
+ * @param 	output_t 	points to the structure of headphones
+ * @param 	volume 		is the volume to be set
+ *
+ * @return  None
+ *
+ * @note	None
+ */
+void setVolume(output_t *HP, u8 volume) {
+	u8 setFlag=0x03;	//higher 6bits are volume, 2bits for enable hp,
+	HP->volume.left = volume;
+	HP->volume.right = volume;
+
+	I2C_send(ADAU_1761_PLAY_HP_LEFT_VOL, (HP->volume.left << 2) | setFlag);
+	I2C_send(ADAU_1761_PLAY_HP_RIGHT_VOL, (HP->volume.right << 2) | setFlag);
+
+//		xil_printf("\n\r !!VOLUME_SET!!! ");
+#ifdef DEBUG
+		xil_printf("\n\r volume.left = %02x ",HP->volume.left);
+		xil_printf("\n\r volume.right = %02x ",HP->volume.right);
+#endif
+}
+
+/**
+ * Sends calculated sine wave into FIFO
+ * @param 	buffer	 	points to the array of calculated sine wave
+ * @param 	wordsize 	is the size of the word to be send to FIFO
+ *
+ * @return  None
+ *
+ * @note	None
+ */
 void I2SSend() {
 	/* Flush the SrcBuffer before the DMA transfer, in case the Data Cache
 	 * is enabled
@@ -991,7 +1083,7 @@ void I2SSend() {
 	if(Data_Chunk.Subchunk2_size > MAX_AUDIO_BLOCK_SIZE){ //if audio data is bigger than 8M bytes, divide into blocks
 		nAudioBlocks=floor((double)Data_Chunk.Subchunk2_size/MAX_AUDIO_BLOCK_SIZE); //round to the lowest
 		printf("\n\r------------------------------------\n\r");
-		printf("\nAUDIO SIZE LARGER THAN 8M:: \n\r");
+		printf("\AUDIO SIZE LARGER THAN 8M:: \n\r");
 		if(audioBlockCounter<nAudioBlocks){//if current playing block is not the last calculated, send normal block of 4M
 		Status = XAxiDma_SimpleTransfer(&AxiDma, (UINTPTR) AudioBuffer+(MAX_AUDIO_BLOCK_SIZE*audioBlockCounter),
 					MAX_AUDIO_BLOCK_SIZE, XAXIDMA_DMA_TO_DEVICE);
@@ -999,7 +1091,7 @@ void I2SSend() {
 		}
 		else if(audioBlockCounter==nAudioBlocks){ //if this is the last block of data, calculate rest of the data to send
 			lastBlockSize=Data_Chunk.Subchunk2_size-(audioBlockCounter*MAX_AUDIO_BLOCK_SIZE);
-			printf("LAST BLOCK SIZE:: %d \n\r",(int)lastBlockSize);
+			printf("LAST BLOCK SIZE:: %d \n\r",lastBlockSize);
 			Status = XAxiDma_SimpleTransfer(&AxiDma, (UINTPTR) AudioBuffer+(MAX_AUDIO_BLOCK_SIZE*audioBlockCounter),
 					lastBlockSize, XAXIDMA_DMA_TO_DEVICE);
 			}
@@ -1027,205 +1119,7 @@ void I2SSend() {
 	printf("------------------------------------\n\r");
 }
 
-//#############################################################################
-void Read_SD_Card(char *filename) {
-//	RIFF_Chunk_t RIFF_Info;
-//	fmt_Chunk_t fmt_Chunk;
-//	Data_Chunk_t Data_Chunk;
-	FIL file; // file structure information
-	UINT nBytesRead = 0;
 
-	//for testing
-	printf("Read_SD_Card function entered\n\r");
-
-	//File function return code (FRESULT)
-	//result is the instance of (FRESULT) containing the result of the function f_open
-	//FRESULT f_open (FIL* fp, const TCHAR* path, BYTE mode);/* Open or create a file */
-
-	FRESULT result = f_open(&file, filename, FA_READ);
-	if (result != 0) {
-		printf("File not found result = %u\n\r", result);
-	} else {
-		printf("File: %s Found\r\n", filename);
-	}
-
-	// Read the RIFF header
-	// read the file &file
-	// (void*)&RIFF_Info address of array provided
-	// sizeof(RIFF_Info) size of each element of array total
-	//&nBytesRead number of bytes of the array to read
-	result = f_read(&file, (void*) &RIFF_Info, sizeof(RIFF_Info), &nBytesRead);
-
-	// check if read was successful
-	if (result != 0) {
-		printf("Failed to read file\n\r");
-	} else {
-		printf("file read for RIFF header successful\n\r");
-	}
-
-	//compares the first n bytes of structure element RIFF_Info.riff and character array "RIFF".
-	// result
-	if (memcmp(RIFF_Info.ChunkID, "RIFF", 4) != 0) {
-		printf("Illegal file format. RIFF not found\n\r");
-	} else {
-		printf("RIFF_Chunk_t.ChunkID = %.4s\n\r", RIFF_Info.ChunkID);
-	}
-
-	printf("RIFF_Chunk_t.ChunkSize = %lu\n\r",
-			(unsigned long) RIFF_Info.ChunkSize);
-
-	if (memcmp(RIFF_Info.Format, "WAVE", 4) != 0) {
-		printf("Illegal file format. WAVE not found\n\r");
-	} else {
-		printf("RIFF_Chunk_t.ChunkID = %.4s\n\r", RIFF_Info.Format);
-	}
-
-	//the RIFF Chunk reading is complete
-	printf("the RIFF Chunk reading is completed\n\r\n\r\n\r\n\r\n\r\n\r");
-
-	// Read the fmt_Chunk
-	// read the file &file
-	// (void*)&fmt_Info address of array provided
-	// sizeof(fmt_Info) size of each element of array total
-	//&nBytesRead number of bytes of the array to read
-
-	result = f_read(&file, (void*) &fmt_Chunk, sizeof(fmt_Chunk), &nBytesRead);
-	// check if read was successful
-	if (result != 0) {
-		printf("Failed to read file\n\r");
-	} else {
-		printf("file read for fmt header successful\n\r");
-	}
-
-	//check the fmt section via the structure fmt_Chunk_t;
-	// this section holds all of the sampling informtaion for the music
-
-	//u32 Subchunk1_ID;   // big endian       Should contain the letters "fmt " note the extra empty charachter value
-	//u32 Subchunk1_Size; // little endian    16 for PCM.  This is the size of the  rest of the Subchunk which follows this number.
-	//u16 Audio_Format;   // little endian    PCM = 1 (i.e. Linear quantization) Values other than 1 indicate some form of compression.
-	//u16 Num_Channels;   // little endian    Mono = 1, Stereo = 2, etc.
-	//u32 Sample_Rate;    // little endian    8000, 44100, etc.
-	//u32 ByteRate;       // little endian    == SampleRate * NumChannels * BitsPerSample/8
-	//u16 Block_Align;    // little endian    == NumChannels * BitsPerSample/8
-	// The number of bytes for one sample including
-	// all channels.
-	//u16 Bits_Per_Sample;// little endian    8 bits = 8, 16 bits = 16, etc.
-
-	//fmt_Chunk_t fmt_Chunk;
-	// check for the word data in correct position
-	if (memcmp(fmt_Chunk.Subchunk1_ID, "fmt ", 4) != 0) {
-		printf("'fmt' word not found.\n\r");
-		printf("fmt_Chunk.Subchunk1_ID = %s\r\n", fmt_Chunk.Subchunk1_ID);
-	} else {
-		printf("fmt_Chunk.Subchunk1_ID = %.3s\r\n", fmt_Chunk.Subchunk1_ID);
-	}
-
-	//check the size of the sub chunk
-	printf("Subchunk1_Size:\n\r");
-	printf("Data_Chunk.Subchunk1_Size = %u\r\n",
-			(int) Data_Chunk.Subchunk2_size);
-	// https://en.wikipedia.org/wiki/Pulse-code_modulation
-	printf("expected 16 which means PCM (Pulse Code Modulation)\n\r");
-
-	// check the audio format
-	//Type of format (1 is PCM) - 2 byte integer
-	//Audio_Format
-	printf("fmt_Chunk.Audio_Format = %u\n\r", (int) fmt_Chunk.Audio_Format);
-	printf("expected 1 which means PCM \n\r");
-
-	//Num_Channels
-	// for stereo = 2
-	// for mono = 1
-	printf("fmt_Chunk.Num_Channels = %u\r\n", (int) fmt_Chunk.Num_Channels);
-	printf("expected 2 which means stereo  \n\r");
-
-	//Sample_Rate
-	// Sample rate is the number of samples of audio carried per second, measured in Hz or kHz
-	// (one kHz being 1000 Hz). For example, 44100 samples per second can be expressed as
-	// either 44100 Hz, or 44.1 kHz. ... The sample rate determines the maximum audio frequency
-	//that can be reproduced.
-	printf("fmt_Chunk.Sample_Rate = %u\r\n", (int) fmt_Chunk.Sample_Rate);
-	printf("best value should be 44100 that is maximum\n\r");
-
-	//ByteRate
-	//The audio data rate in bytes/sec.
-	// == SampleRate * NumChannels * BitsPerSample/8
-	printf("fmt_Chunk.ByteRate = %lu\r\n", (unsigned long) fmt_Chunk.ByteRate);
-
-	// Block_Align
-	// Block_Align == NumChannels * BitsPerSample/8
-	// The number of bytes for one sample including all channels.
-	// example : For 16-bit PCM format stereo audio, the block alignment value is 4.
-	printf("fmt_Chunk.Block_Align = %u\r\n", (int) fmt_Chunk.Block_Align);
-	printf("block align value should be 4\n\r");
-
-	//u16 Bits_Per_Sample;
-	// little endian    8 bits = 8, 16 bits = 16, etc.
-	// number of bits per sample usually 16 for .WAV
-	printf("fmt_Chunk.Bits_Per_Sample = %u \n\r",
-			(int) fmt_Chunk.Bits_Per_Sample);
-	printf("number of bits per sample = %u \n\r",
-			(int) fmt_Chunk.Bits_Per_Sample);
-
-	// reading Data Chunk file data
-	// read chunk header
-	//Data_Chunk_t Data_Chunk;
-
-	// Read the Data_Chunk header
-	// read the file &file
-	// (void*)&Data_Chunk address of array provided
-	// size of(Data_Chunk) size of each element of array total
-	//&nBytesRead number of bytes of the array to read
-	result = f_read(&file, (void*) &Data_Chunk, sizeof(Data_Chunk),
-			&nBytesRead);
-	if (result != 0) {
-		printf("Failed to read file\n\r");
-	} else {
-		printf("file read\n\r");
-	}
-
-	// check for the word data in correct position
-	if (memcmp(Data_Chunk.Subchunk2_ID, "data", 4) != 0) {
-		printf("data word not found.\n\r");
-		printf("Data_Chunk_t.Subchunk2_ID = %s\r\n", Data_Chunk.Subchunk2_ID);
-	} else {
-		printf("Data_Chunk_t.Subchunk2_ID = %.4s\n\r", Data_Chunk.Subchunk2_ID);
-	}
-
-	//check the size of the song data
-	printf("size of the song data in bytes:\n\r");
-	printf("Data_Chunk.Subchunk2_size = %lu\r\n",
-			(unsigned long) Data_Chunk.Subchunk2_size);
-
-	// audio data to the heap not the ddr
-
-	// size of audio buffer = size of audio song data
-	//AudioBuffer = malloc(Data_Chunk.Subchunk2_size);
-	// if (!AudioBuffer){
-	//	printf("Could not allocate memory\n\r");
-	//}
-	//else{
-	//   printf("audio buffer size changed to match the audio data size as per header file\n\r");
-	// }
-	AudioBufferSize = Data_Chunk.Subchunk2_size;
-	printf(
-			"audio buffer size variable equal to audio data size as per header file\n\r");
-
-	// read the file
-	result = f_read(&file, (void*) AudioBuffer, AudioBufferSize, &nBytesRead);
-	if (result != 0) {
-		printf("Failed to read file\n\r");
-	} else {
-		printf("read file\n\r");
-	}
-	if (nBytesRead != AudioBufferSize) {
-		printf("Didn't read the complete file");
-	} else {
-		printf("read the complete file");
-
-	}
-
-}
 
 //#############################################################################
 int Read_SD_Card_short(char *filename) {
@@ -1528,15 +1422,7 @@ u8 subchunk_SIZE[nbytes];
 	}
 
 }
-//##################################################################################
-void Check_SD_Card_Mounted(void) {
-	FRESULT result = f_mount(&FS_instance, "0:/", 1);
-	if (result != 0) {
-		print("No SD Card mounted, please insert and restart program.\r\n");
-	} else {
-		print("SD Card is mounted\r\n");
-	}
-}
+
 
 //#############################################################################
 void Open_File_Directory(void) {
@@ -1707,8 +1593,8 @@ void Copy_WAV_File_Names(void) {
 				snprintf(sizeDesignator,3,"%s","MB");
 			}
 
-			snprintf(songList_ptr[songCounterWAV]->songLength, 7, "%d:%.2d", (int)min,(int)seconds);
-			snprintf(songList_ptr[songCounterWAV]->songSizeMb, 12, "%d.%.3d %s",(int)megaBytes, (int)bytes, sizeDesignator);
+			snprintf(songList_ptr[songCounterWAV]->songLength, 7, "%d:%.2d", min,seconds);
+			snprintf(songList_ptr[songCounterWAV]->songSizeMb, 12, "%d.%.3d %s",megaBytes, bytes, sizeDesignator);
 			songList_ptr[songCounterWAV]->songAverageBytePerSec = fmt_Chunk.ByteRate;
 			songList_ptr[songCounterWAV]->songNChannels = fmt_Chunk.Num_Channels;
 			songList_ptr[songCounterWAV]->songSamplingRate = fmt_Chunk.Sample_Rate;
@@ -1817,6 +1703,10 @@ void TxIntrHandler(void *Callback) {
 /*****************************************************************************/
 
 void BTN_SWITCH_Intr_Handler() {
+
+	// local variable for the button value for case statement to choose what to do
+
+	u32 lastbutton=1;
 	u32 currentButton;
 	// Disable further GPIO interrupts
 	XGpio_InterruptDisable(&Gpio_SWITCH_BUTTON, XGPIO_IR_MASK);
@@ -1860,9 +1750,9 @@ void BTN_SWITCH_Intr_Handler() {
 	if ((XGpio_InterruptGetStatus(&Gpio_SWITCH_BUTTON)) == 1) {
 
 		// read the button value
-		// And with 0x0F due to 0x10 is SD_CARD DETECT which will be used inside the main
-		currentButton = XGpio_DiscreteRead(&Gpio_SWITCH_BUTTON, BUTTONS_CHANNEL);// & 0x0F;
-//		xil_printf("CURRENT_Button_Val = %lu\n\r", (unsigned long)currentButton);
+		currentButton = XGpio_DiscreteRead(&Gpio_SWITCH_BUTTON, BUTTONS_CHANNEL);
+
+//		lastbutton=currentButton;
 //		if(Button_Val==0) break;
 
 		// testing current button value
@@ -1924,60 +1814,7 @@ end:
 
 }
 
-/*****************************************************************************/
-void rgb_test(int LED_RGB_VAL) {
-	volatile int Delay;
-	/* Set the LED to High */
-	XGpio_DiscreteWrite(&Gpio_LEDs, RGB_LED_CHANNEL, LED_RGB_VAL);
 
-#ifdef TESTING
-	print("led  4 ON \n\r");
-#endif
-
-	/* Wait a small amount of time so the LED is visible */
-	for (Delay = 0; Delay < LED_DELAY; Delay++)
-		;
-
-	/* Clear the LED bit */
-	XGpio_DiscreteClear(&Gpio_LEDs, RGB_LED_CHANNEL, LED_RGB_VAL);
-
-#ifdef TESTING
-	print("led  4 OFF \n\r");
-#endif
-
-	/* Wait a small amount of time so the LED is visible */
-	for (Delay = 0; Delay < LED_DELAY; Delay++)
-		;
-}
-/******************************************************************************/
-void Single_LED_test(int LED_NUM) {
-	volatile int Delay;
-	/* Set the LED to High */
-	XGpio_DiscreteWrite(&Gpio_LEDs, SINGLE_LED_CHANNEL, LED_NUM);
-
-#ifdef TESTING
-	print("led  4 ON \n\r");
-#endif
-
-	/* Wait a small amount of time so the LED is visible */
-	for (Delay = 0; Delay < LED_DELAY; Delay++)
-		;
-
-	/* Clear the LED bit */
-	XGpio_DiscreteClear(&Gpio_LEDs, SINGLE_LED_CHANNEL, LED_NUM);
-
-#ifdef TESTING
-	print("led  4 OFF \n\r");
-#endif
-
-	/* Wait a small amount of time so the LED is visible */
-	for (Delay = 0; Delay < LED_DELAY; Delay++)
-		;
-}
-
-void turnOffLEDS(){
-	XGpio_DiscreteWrite(&Gpio_LEDs, SINGLE_LED_CHANNEL, 0x00);
-}
 
 int readFile(u32 AudioDataSizeToRead){
 	return f_read(&file, (void*) AudioBuffer, AudioDataSizeToRead,&nBytesRead);
