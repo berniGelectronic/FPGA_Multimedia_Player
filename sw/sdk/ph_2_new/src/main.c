@@ -9,6 +9,7 @@
  *#####################################################################
  */
 
+
 #include "xparameters.h"
 #include "xiic.h"
 #include "xiic_l.h"
@@ -16,7 +17,11 @@
 #include "xstatus.h"
 #include "xil_exception.h"
 #include "xil_printf.h"
-#include "sleep.h"
+
+
+
+
+//#include "sleep.h"
 #include "stdio.h"
 #include <math.h>
 #include "xdebug.h"
@@ -28,20 +33,19 @@
 #include "xgpio.h"
 #include "xgpio_l.h"
 //#include "xllfifo.h"
+#include "audio.h"
 
-#include "adau_1761.h"
+//#include "adau_1761.h"
 #include "interrupt_hand.h"
 #include "sd_card.h"
 #include "user_io.h"
-//#include "IP_defines.h"
 
-#include <stdio.h>
 #include "xaxivdma.h"
 #include <stdlib.h>
 #include "xil_cache.h"
 #include "Graphics.h"
 #include "Bit_Bash.h"
-//#include "Interrupt.h"
+
 #include "VDMA_Setup.h"
 #include "imageData.h"
 #include "GPIO_LEDs.h"
@@ -98,8 +102,8 @@
 //#define GPIO_BTN_CHANNEL 0
 //#define GPIO_SW_CHANNEL 1
 
-//#define SINGLE_LED_CHANNEL 1
-//#define RGB_LED_CHANNEL    2
+#define SINGLE_LED_CHANNEL 1
+#define RGB_LED_CHANNEL    2
 
 #define BUTTONS_CHANNEL 1
 #define SWITCH_CHANNEL  2
@@ -113,7 +117,6 @@
 //FIFO
 //#define FIFO_ID XPAR_AXI_FIFO_0_DEVICE_ID
 //#define FIFO_BASE_ADDRESS XPAR_AXI_FIFO_0_BASEADDR
-
 
 #define dataCount 4
 #define readData 10
@@ -146,17 +149,11 @@ static void I2CStatusHandler(XIic *InstancePtr, int Event);
 void BTN_SWITCH_Intr_Handler();
 void TxIntrHandler(void *Callback);
 
-void setCodecPLL(int sampling_rate);
-void setVolume(output_t *HP, u8 volume);
 void printData(u8 samples, u8 *data);
 void I2SSend();
 void I2C_send(u16 address, u8 datasend);
-void CodecReadByte(u16 Address, u8 *BufferPtr, u8 ByteCount);
 
-//void Read_SD_Card(char *filename, size_t AudioBufferSize);
-/*void Check_SD_Card_Mounted(void);*/
 void Open_File_Directory(void);
-
 void Copy_WAV_File_Names(void);
 int Read_SD_Card_short(char *filename);
 
@@ -212,7 +209,6 @@ songList_t **songList_ptr;
 UINT nBytesRead = 0;
 
 
-
 //SWITCH AND BUTTON enum
 switch_t SW_STATE;
 button_t BTN_STATE;
@@ -222,10 +218,9 @@ XAxiVdma AxiVdma;
 //COLOUR RGB;
 
 int numberOfScreens=10;
-extern unsigned char Test_Image_map[FrameSize];
-extern unsigned char volume_screen[FrameSize];
-extern unsigned char song_selection[FrameSize];
 extern const struct register_values adau_1761_reg[12];
+
+
 
 volatile u8 TransmitComplete; /* Flag to check completion of Transmission i2c*/
 volatile u8 ReceiveComplete; /* Flag to check completion of Reception i2c */
@@ -266,15 +261,10 @@ u8 *ImageBuffer=(u8 *) IMAGE_BUFFER_SIZE;
 
 int Status;
 
-//int Tries = NUMBER_OF_TRANSFERS;
-//int Index;
-//u8 Value;
-
 XGpio Gpio_SPI_TFT;
 
 int main(void) {
 	int status;
-	int byteRead = 0;
 	int tempVolume=defaultVolume;
 	headphones.volume.left=defaultVolume;
 	headphones.volume.right=defaultVolume;
@@ -312,7 +302,7 @@ int main(void) {
 	//***************************SET PLL REGISTER*************************************************
 	I2C_send(ADAU_1761_CLOCK_CONTROL, 0x0E); // core OFF
 
-	setCodecPLL(defaultSamplingFrequency); //Write PLL reg
+	setCodecPLL(&I2C, defaultSamplingFrequency); //Write PLL reg
 
 	xil_printf("\n\r!!!PLL DONE!!!!");
 
@@ -330,23 +320,23 @@ int main(void) {
 	xil_printf("\n\rStart reading from CODEC...");
 
 	//********************read FROM CODEC****************************************************
-	CodecReadByte(ADAU_1761_PLL_CONTROL, rxData, 7);
+	CodecReadByte(I2C_BASE_ADDRESS, CODEC_ADDRESS, ADAU_1761_PLL_CONTROL, rxData, 7);
 	xil_printf("\n\rRegister ADDRESS: %x",ADAU_1761_PLL_CONTROL);
 	printData(7, rxData);	//print received data
 
 	for (int i = 0; i < (sizeof(adau_1761_reg) / sizeof(adau_1761_reg[0]));
 			i++) {
 
-		CodecReadByte(adau_1761_reg[i].addr, rxData, 2);
+		CodecReadByte(I2C_BASE_ADDRESS, CODEC_ADDRESS,adau_1761_reg[i].addr, rxData, 2);
 		xil_printf("\n\rRegister ADDRESS: %x \t DATA: 0x%02x ", adau_1761_reg[i].addr,rxData[0]);
 
 	}
 	xil_printf("\n\r***** CODEC READING DONE*****\n\r");
 
 	// READ LEFT & RIGHT VOLUME REGISTER
-	CodecReadByte(ADAU_1761_PLAY_HP_LEFT_VOL,rxData,2);
+	CodecReadByte(I2C_BASE_ADDRESS, CODEC_ADDRESS,ADAU_1761_PLAY_HP_LEFT_VOL,rxData,2);
 	printData(2, rxData);	//print received data
-	CodecReadByte(ADAU_1761_PLAY_HP_RIGHT_VOL,rxData,2);
+	CodecReadByte(I2C_BASE_ADDRESS, CODEC_ADDRESS,ADAU_1761_PLAY_HP_RIGHT_VOL,rxData,2);
 	printData(2, rxData);	//print received data
 
 	xil_printf("\n\rCODEC CONFIGRUATION DONE!!!\n\r ");
@@ -356,8 +346,6 @@ int main(void) {
 	//*********************************************************************************************
 	// DMA
 	//for(;;) {
-
-
 	//check SD card is mounted
 	Check_SD_Card_Mounted(FS_instance);
 
@@ -374,7 +362,7 @@ int main(void) {
 
 	xil_printf("\n\rMultimedia player Ready!!!\n\r ");
 
-	u32 lastStateButton=0, lastStateSwitch=0;
+//	u32 lastStateButton=0, lastStateSwitch=0;
 	int songCounter=0;
 	int currentPlaying=-1; // first time press play only
 	int error;
@@ -554,7 +542,7 @@ int main(void) {
 					error=Read_SD_Card_short(songList_ptr[songCounter+MAX_SONGS_ON_LIST*songlistsCounter]->songName);
 					if(error != XST_FAILURE){
 						if ((int) fmt_Chunk.Sample_Rate!= currentFS) { //if Fs is different first set codec PLL to new fs
-							setCodecPLL((int) fmt_Chunk.Sample_Rate);
+							setCodecPLL(&I2C,(int) fmt_Chunk.Sample_Rate);
 							currentFS=(int) fmt_Chunk.Sample_Rate;
 
 						} else {
@@ -749,7 +737,7 @@ int configureALL() {
 
 	// set both channels of buttons and switches gpio as inputs
 	// both buttons and switches (only 4 buttons and 2 switches)
-	XGpio_SetDataDirection(&Gpio_SWITCH_BUTTON, BUTTONS_CHANNEL, 0x0F);
+	XGpio_SetDataDirection(&Gpio_SWITCH_BUTTON, BUTTONS_CHANNEL, 0x1F); //0x0F
 	XGpio_SetDataDirection(&Gpio_SWITCH_BUTTON, SWITCH_CHANNEL, 0x03);
 
 
@@ -815,7 +803,7 @@ void I2C_send(u16 address, u8 datasend) {
 	XIic_Stop(&I2C);
 	//Must stop I2C after send function
 
-	xil_printf("\n\r COMPLETE:: %d \n\r",TransmitComplete);
+//	xil_printf("\n\r COMPLETE:: %d \n\r",TransmitComplete);
 
 
 	/*while(TransmitComplete == 1 ){
@@ -826,23 +814,6 @@ void I2C_send(u16 address, u8 datasend) {
 	usleep(2000); //required after each send according to the codec example
 }
 
-/**
- * Reads number of bytes from the codec
- *
- * @param 	Address	 	Address of register in Codec
- * @param 	*BufferPtr	points to the buffer to store read values
- * @param	ByteCount	Number of bytes to read
- *
- * @return  None
- *
- * @note	None
- */
-void CodecReadByte(u16 Address, u8 *readBuffer, u8 ByteCount) {
-	u8 AddrToSend[]={Address >>8, (u8)Address};
-
-	XIic_Send(I2C_BASE_ADDRESS, CODEC_ADDRESS,AddrToSend,ByteCount, XIIC_STOP);
-	XIic_Recv(I2C_BASE_ADDRESS, CODEC_ADDRESS,readBuffer,ByteCount, XIIC_STOP);
-}
 
 /**
  * Setup interrupt system
@@ -973,8 +944,8 @@ static int SetupInterruptSystem(XIic *IicInstPtr, XAxiDma *AxiDma, XGpio *Gpio_S
 
 static void I2CSendHandler(XIic *InstancePtr) {
 	TransmitComplete = 0;
-	xil_printf("\n\r 1111COMPLETE TRANS:: %d",TransmitComplete);
-	xil_printf("\n\r 222INTERRUPT OCCURED RESET IER:: %x\n\r",XIic_ReadIier(I2C_BASE_ADDRESS));
+//	xil_printf("\n\r 1111COMPLETE TRANS:: %d",TransmitComplete);
+//	xil_printf("\n\r 222INTERRUPT OCCURED RESET IER:: %x\n\r",XIic_ReadIier(I2C_BASE_ADDRESS));
 
 }
 
@@ -983,37 +954,6 @@ static void I2CReceiveHandler(XIic *InstancePtr) {
 
 }
 
-/**
- * Writes the correct PLL value for the selected sampling frequency
- * Supports only 2 sampling rates, 44.1kHz and 48kHz
- *
- * @param 	sampling_rate	 	sample rate to write to the codec
- *
- * @return  None
- *
- * @note	PLL lock time required for the codec to set Lock Bit in register 0x4002
- */
-void setCodecPLL(int sampling_rate) {
-	int bytes = 9;
-
-	switch (sampling_rate) {
-	case 44100:
-		xil_printf("\n\r SAMPLING FREQUENCY SET: 44100");
-		XIic_MasterSend(&I2C, PLL_44, bytes);
-		break;
-	case 48000:
-		xil_printf("\n\r SAMPLING FREQUENCY SET: 48000");
-		XIic_MasterSend(&I2C, PLL_48, bytes);
-		break;
-	default:
-		xil_printf("\n\r ***ERROR_PLL***");
-		break;
-	}
-
-	usleep(10 * 1000); //PLL LOCK time
-
-	// according to the https://github.com/logicbricks/driver_alsa_logii2s/blob/master/test/app_i2s_test_linux/adau1761.c PLL lock time
-}
 
 /**
  * Prints data to the serial monitor from array
@@ -1035,43 +975,6 @@ void printData(u8 samples, u8 *data) {
 
 }
 
-/**
- * Sets volume for both channels (Stereo), volume can be incremented in min 1 step, total 64 steps
- * Table 95, page 90 ADAU 1761 Datasheet
- * volume: 0  [dec] 	equals to -57dB   -- Silent
- * volume: 63 [dec] 	equals to   6dB	  -- Highest volume
- *
- * @param 	output_t 	points to the structure of headphones
- * @param 	volume 		is the volume to be set
- *
- * @return  None
- *
- * @note	None
- */
-void setVolume(output_t *HP, u8 volume) {
-	u8 setFlag=0x03;	//higher 6bits are volume, 2bits for enable hp,
-	HP->volume.left = volume;
-	HP->volume.right = volume;
-
-	I2C_send(ADAU_1761_PLAY_HP_LEFT_VOL, (HP->volume.left << 2) | setFlag);
-	I2C_send(ADAU_1761_PLAY_HP_RIGHT_VOL, (HP->volume.right << 2) | setFlag);
-
-//		xil_printf("\n\r !!VOLUME_SET!!! ");
-#ifdef DEBUG
-		xil_printf("\n\r volume.left = %02x ",HP->volume.left);
-		xil_printf("\n\r volume.right = %02x ",HP->volume.right);
-#endif
-}
-
-/**
- * Sends calculated sine wave into FIFO
- * @param 	buffer	 	points to the array of calculated sine wave
- * @param 	wordsize 	is the size of the word to be send to FIFO
- *
- * @return  None
- *
- * @note	None
- */
 void I2SSend() {
 	/* Flush the SrcBuffer before the DMA transfer, in case the Data Cache
 	 * is enabled
@@ -1083,7 +986,7 @@ void I2SSend() {
 	if(Data_Chunk.Subchunk2_size > MAX_AUDIO_BLOCK_SIZE){ //if audio data is bigger than 8M bytes, divide into blocks
 		nAudioBlocks=floor((double)Data_Chunk.Subchunk2_size/MAX_AUDIO_BLOCK_SIZE); //round to the lowest
 		printf("\n\r------------------------------------\n\r");
-		printf("\AUDIO SIZE LARGER THAN 8M:: \n\r");
+		printf("\nAUDIO SIZE LARGER THAN 8M:: \n\r");
 		if(audioBlockCounter<nAudioBlocks){//if current playing block is not the last calculated, send normal block of 4M
 		Status = XAxiDma_SimpleTransfer(&AxiDma, (UINTPTR) AudioBuffer+(MAX_AUDIO_BLOCK_SIZE*audioBlockCounter),
 					MAX_AUDIO_BLOCK_SIZE, XAXIDMA_DMA_TO_DEVICE);
@@ -1119,9 +1022,6 @@ void I2SSend() {
 	printf("------------------------------------\n\r");
 }
 
-
-
-//#############################################################################
 int Read_SD_Card_short(char *filename) {
 	// move below to be not local to Read_SD_Card_short ONLY
 
@@ -1703,10 +1603,6 @@ void TxIntrHandler(void *Callback) {
 /*****************************************************************************/
 
 void BTN_SWITCH_Intr_Handler() {
-
-	// local variable for the button value for case statement to choose what to do
-
-	u32 lastbutton=1;
 	u32 currentButton;
 	// Disable further GPIO interrupts
 	XGpio_InterruptDisable(&Gpio_SWITCH_BUTTON, XGPIO_IR_MASK);
@@ -1750,9 +1646,9 @@ void BTN_SWITCH_Intr_Handler() {
 	if ((XGpio_InterruptGetStatus(&Gpio_SWITCH_BUTTON)) == 1) {
 
 		// read the button value
-		currentButton = XGpio_DiscreteRead(&Gpio_SWITCH_BUTTON, BUTTONS_CHANNEL);
-
-//		lastbutton=currentButton;
+		// And with 0x0F due to 0x10 is SD_CARD DETECT which will be used inside the main
+		currentButton = XGpio_DiscreteRead(&Gpio_SWITCH_BUTTON, BUTTONS_CHANNEL);// & 0x0F;
+//		xil_printf("CURRENT_Button_Val = %lu\n\r", (unsigned long)currentButton);
 //		if(Button_Val==0) break;
 
 		// testing current button value
