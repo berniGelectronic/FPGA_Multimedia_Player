@@ -52,39 +52,19 @@
 
 #define defaultSamplingFrequency samplingFrequency1 // because it's the most popular one
 
-//Address 0x4002 + 48 bits PLL Value (from ADAU 1761 datasheet or SigmaStudio)
-u8 PLL_44[]={ADAU_1761_PLL_CONTROL>>8,(u8)ADAU_1761_PLL_CONTROL,0x02,0x71,0x01,0x93,0x29,0x01};
-u8 PLL_48[]={ADAU_1761_PLL_CONTROL>>8,(u8)ADAU_1761_PLL_CONTROL,0x00,0x7D,0x00,0x12,0x31,0x01};
-
-
 struct register_values {
 	u16 addr;
 	u8 value;
-};
-
-const struct register_values adau_1761_reg[] = {
-	{ ADAU_1761_CLK_ENABLE0,			0x7F }, // SLEWPD=1, ALCPD=1, DECPD=1, SOUTPD=1, INTPD=1, SINPD=1, SPPD=1
-	{ ADAU_1761_CLK_ENABLE1,			0x03 }, // CLK1=1, CLK0=1
-	{ ADAU_1761_SERIAL_PORT_0,			0x01 }, // SPSRS=0, LRMOD=0, BPOL=0, LRPOL=0, CHPF=0, MS=1 (master mode)
-	{ ADAU_1761_SERIAL_PORT_1,			0x00 }, // BPF=0, ADTDM=0, DATDM=0, MSBP=0, LRDEL=0
-	{ ADAU_1761_CONVERTER_0,			0x00 }, // DAPAIR=0, DAOSR=0, ADOSR=0, CONVSR=0
-	{ ADAU_1761_PLAY_MIXER_LEFT0,		0x21 }, // MX3RM=0, MX3LM=1, MX3AUXG=0, MX3EN=1
-	{ ADAU_1761_PLAY_MIXER_RIGHT0,		0x41 }, // MX4RM=1, MX4LM=0, MX4AUXG=0, MX4EN=1
-	{ ADAU_1761_PLAY_HP_LEFT_VOL,		initialVolume }, //LHPVOL=011011, LHPM=1, HPEN=1
-	{ ADAU_1761_PLAY_HP_RIGHT_VOL,	    initialVolume }, //RHPVOL=011011, RHPM=1, HPMODE=1
-	{ ADAU_1761_PLAY_POWER_MGMT,		0x03 }, // HPBIAS=0, DACBIAS=0, PBIAS=0, PREN=1, PLEN=1
-	{ ADAU_1761_DAC_CONTROL,			0x23 }, // DACMONO=0, DACPOL=1,DEMPH=0, DACEN=3
-	{ ADAU_1761_SERIAL_INPUT_ROUTE,		0x01 }  // SINRT=1 -Serial input [L0, R0] to DACs [L, R]
 };
 
 struct channel{
 	u8 left;
 	u8 right;
 };
+
 typedef struct{
 	 struct channel volume;
 }output_t;
-
 
 
 #endif /* SRC_ADAU_1761_H_ */

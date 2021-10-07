@@ -81,3 +81,6 @@ set_property -dict {PACKAGE_PIN W9 IOSTANDARD LVCMOS33} [get_ports TFT_MOSI]
 set_property -dict {PACKAGE_PIN V7 IOSTANDARD LVCMOS33} [get_ports TFT_CLK]
 set_property -dict {PACKAGE_PIN C20 IOSTANDARD LVCMOS33} [get_ports TFT_CS]
 set_property -dict {PACKAGE_PIN Y8 IOSTANDARD LVCMOS33} [get_ports TFT_BK_LIGHT]
+
+
+set_property -dict {PACKAGE_PIN B14 IOSTANDARD LVCMOS33} [get_ports SD_CD]
