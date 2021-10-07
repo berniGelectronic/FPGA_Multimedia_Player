@@ -6,7 +6,10 @@
 * @name:    FPGA Based Multimedia Player
 * @uni:     University of York
 * @Msc:     DSE Programme 2019/20
-* @Authors: Oliver Forbes-Shaw & Bernard Guncic
+* @Authors: Bernard Guncic & Oliver Forbes-Shaw
+* @Hardware: PYNQ-Z2:-https://www.tul.com.tw/productspynq-z2.html
+*             HyperPixel 4.0 inch touchscreen:- https://shop.pimoroni.com/products/hyperpixel-4?variant=12569485443155
+* @Software: Vivado 2017.4.1 and its SDK
 *
 #####################################################################
 ```
