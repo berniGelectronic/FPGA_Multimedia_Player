@@ -1,0 +1,1 @@
+set_false_path -from [get_clocks clk_fpga_0] -to [get_clocks clk_fpga_0] -through [get_cells -hier -filter NAME=~codec_i/inputs/deb_new_20_*]
